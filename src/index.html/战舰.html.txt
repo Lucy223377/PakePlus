@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>舰娘战棋</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px;
+    background: #0b1a2a; color: #d8e6f2;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    display: flex; justify-content: center;
+    align-items: flex-start; min-height: 100vh;
+    user-select: none;
+  }
+  .screen { display: none; width: 100%; }
+  .screen.active { display: block; }
+  h1 {
+    font-size: 42px; margin: 0;
+    color: #7ec8ff; letter-spacing: 8px;
+    text-shadow: 0 0 30px rgba(126,200,255,.5);
+  }
+  .subtitle { font-size: 13px; color: #4a7a9a; letter-spacing: 4px; margin-top: 8px; }
+  button {
+    background: #1e5a8a; color: #d8e6f2;
+    border: 1px solid #2d7ab8;
+    border-radius: 6px; padding: 12px 24px;
+    font-size: 15px; font-family: inherit;
+    cursor: pointer; transition: all .15s;
+    letter-spacing: 2px;
+  }
+  button:hover:not(:disabled) { background: #2a7ab8; transform: translateY(-1px); }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  button.primary { background: #2a6a2a; border-color: #4a9a4a; }
+  button.primary:hover:not(:disabled) { background: #3a8a3a; }
+  button.danger { background: #5a2020; border-color: #8a3030; }
+  button.danger:hover:not(:disabled) { background: #7a2a2a; }
+
+  #screen-home .home-wrap { max-width: 640px; margin: 60px auto 0; text-align: center; }
+  #screen-home .menu { margin-top: 48px; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  #screen-home .menu button { width: 260px; padding: 14px; }
+
+  #screen-campaign .campaign-wrap { max-width: 760px; margin: 40px auto 0; }
+  .campaign-header { text-align: center; margin-bottom: 30px; }
+  .campaign-header h2 { color: #7ec8ff; font-size: 24px; letter-spacing: 6px; margin: 0 0 8px; }
+  .campaign-header .tip { font-size: 12px; color: #6a8aa8; }
+  .level-list { display: flex; flex-direction: column; gap: 12px; }
+  .level-card {
+    background: #10263c; border: 2px solid #1e4a70; border-radius: 8px;
+    padding: 16px 20px; display: flex; align-items: center; gap: 18px;
+    cursor: pointer; transition: all .15s;
+  }
+  .level-card:hover:not(.locked) { border-color: #4fc3f7; transform: translateX(4px); }
+  .level-card.locked { opacity: .45; cursor: not-allowed; filter: grayscale(.6); }
+  .level-card.cleared { border-color: #4a9a4a; }
+  .level-num {
+    width: 48px; height: 48px; border-radius: 50%; background: #1e4a70;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: bold; color: #7ec8ff; flex-shrink: 0;
+  }
+  .level-card.cleared .level-num { background: #2a6a2a; color: #a0e0a0; }
+  .level-info { flex: 1; }
+  .level-name { font-size: 17px; color: #7ec8ff; margin-bottom: 4px; font-weight: bold; }
+  .level-card.cleared .level-name { color: #a0e0a0; }
+  .level-desc { font-size: 12px; color: #6a8aa8; }
+  .level-status { font-size: 13px; letter-spacing: 1px; }
+  .level-status.cleared { color: #4a9a4a; }
+  .level-status.locked { color: #5a6a7a; }
+  .campaign-footer { margin-top: 30px; display: flex; gap: 10px; justify-content: center; }
+
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.75);
+    display: none; align-items: center; justify-content: center; z-index: 200;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: #10263c; border: 1px solid #1e4a70; border-radius: 10px;
+    padding: 24px 28px; max-width: 560px; max-height: 80vh; overflow-y: auto;
+    font-size: 13px; line-height: 1.9;
+  }
+  .modal h2 { color: #7ec8ff; margin: 0 0 16px; font-size: 18px; letter-spacing: 2px; }
+  .modal h3 { color: #4fc3f7; margin: 18px 0 6px; font-size: 14px; }
+  .modal ul { margin: 4px 0; padding-left: 20px; }
+  .modal li { margin-bottom: 4px; }
+  .modal .close-btn { margin-top: 20px; width: 100%; }
+
+  #screen-select .select-wrap { max-width: 1100px; margin: 20px auto; }
+  .select-header { text-align: center; margin-bottom: 20px; }
+  .select-header h2 { color: #7ec8ff; font-size: 22px; letter-spacing: 4px; margin: 0 0 6px; }
+  .select-header .tip { font-size: 12px; color: #6a8aa8; }
+  .select-body { display: flex; gap: 20px; align-items: flex-start; }
+  .pool-panel, .chosen-panel {
+    background: #10263c; border: 1px solid #1e4a70; border-radius: 8px; padding: 14px;
+  }
+  .pool-panel { flex: 1; }
+  .chosen-panel { width: 320px; }
+  .panel-title {
+    font-size: 13px; color: #7ec8ff; letter-spacing: 2px;
+    margin-bottom: 12px; border-bottom: 1px solid #1e4a70; padding-bottom: 8px;
+  }
+  .ship-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .ship-card {
+    background: #16324a; border: 2px solid #1e4a70; border-radius: 6px;
+    padding: 10px; cursor: pointer; transition: all .15s; font-size: 12px; line-height: 1.6;
+    text-align: center;
+  }
+  .ship-card:hover { border-color: #4fc3f7; transform: translateY(-2px); }
+  .ship-card.selected { border-color: #ffd54f; background: #1f3f5a; box-shadow: 0 0 12px rgba(255,213,79,.4); }
+  .ship-card.disabled { opacity: .4; cursor: not-allowed; }
+  .ship-card .name { font-size: 15px; font-weight: bold; color: #7ec8ff; margin-bottom: 4px; }
+  .ship-card .type { color: #6a8aa8; font-size: 11px; margin-bottom: 6px; }
+  .ship-card .stat { color: #9fb8cc; text-align: left; }
+
+  /* ★ 立绘容器 */
+  .ship-portrait {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background: #0f2030;
+    display: block;
+  }
+  .ship-portrait.hidden { display: none; }
+  /* 无图时的占位 */
+  .portrait-placeholder {
+    width: 100%;
+    height: 120px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background: linear-gradient(160deg, #1e3a5a, #0f2030);
+    display: flex; align-items: center; justify-content: center;
+    color: #4a6a8a; font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  .chosen-slot {
+    display: flex; align-items: center; gap: 10px; background: #0f2030;
+    border: 1px dashed #2d5a7a; border-radius: 6px; padding: 12px;
+    margin-bottom: 8px; min-height: 60px; font-size: 13px;
+  }
+  .chosen-slot.filled { border-style: solid; border-color: #2d7ab8; }
+  .chosen-slot .slot-num {
+    width: 28px; height: 28px; border-radius: 50%; background: #1e4a70;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: bold; flex-shrink: 0;
+  }
+  .chosen-slot .slot-info { flex: 1; }
+  .chosen-slot .slot-name { font-size: 15px; color: #7ec8ff; font-weight: bold; }
+  .chosen-slot .slot-type { font-size: 11px; color: #6a8aa8; }
+  .chosen-slot .remove-btn {
+    background: transparent; border: 1px solid #7a2d2d;
+    color: #ff8a80; padding: 4px 10px; font-size: 12px; letter-spacing: 0;
+  }
+  .chosen-slot .remove-btn:hover { background: #4a1a1a; }
+  .enemy-info {
+    background: #1a0f14; border: 1px solid #5a2020; border-radius: 6px;
+    padding: 12px; margin-top: 12px; font-size: 12px; color: #b88a8a; line-height: 1.7;
+  }
+  .enemy-info .title { color: #ff8a80; font-size: 13px; letter-spacing: 1px; margin-bottom: 4px; }
+  .select-actions { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .select-actions button { width: 100%; }
+
+  #screen-battle .battle-wrap { display: flex; gap: 16px; justify-content: center; align-items: flex-start; }
+  #screen-battle h1 { font-size: 18px; margin: 0 0 10px; letter-spacing: 2px; }
+  #board {
+    display: grid; grid-template-columns: repeat(10, 48px); grid-template-rows: repeat(10, 48px);
+    gap: 2px; background: #06101c; padding: 6px; border-radius: 8px;
+    box-shadow: 0 0 30px rgba(0,80,160,.3);
+  }
+  .cell {
+    width: 48px; height: 48px; background: #16324a; border-radius: 4px;
+    position: relative; cursor: pointer; transition: background .1s;
+  }
+  .cell:hover { background: #1e4260; }
+  .cell.island { background: #4a5c3a; cursor: not-allowed; }
+  .cell.island:hover { background: #4a5c3a; }
+  .cell.fog { background: #0a1520 !important; }
+  .cell.fog:hover { background: #0a1520 !important; cursor: default; }
+  .cell.fog.island { background: #1a2418 !important; }
+  .cell.move-range { background: #1f5a80; box-shadow: inset 0 0 0 2px #4fc3f7; }
+  .cell.move-range:hover { background: #2a6d96; }
+  .cell.attack-target { box-shadow: inset 0 0 0 3px #ff5252, 0 0 10px rgba(255,82,82,.6); }
+  .cell.attack-target:hover { background: #6a2020; }
+  .cell.launch-range { background: #5a4a10; box-shadow: inset 0 0 0 2px #ffd54f; }
+  .cell.launch-range:hover { background: #7a6a20; }
+  .cell.selected { box-shadow: inset 0 0 0 3px #ffd54f, 0 0 12px #ffd54f; }
+  .unit {
+    position: absolute; inset: 3px; border-radius: 6px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: bold; color: #fff; pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,.5);
+  }
+  .unit.player { background: linear-gradient(160deg, #2979ff, #0d47a1); }
+  .unit.enemy  { background: linear-gradient(160deg, #e53935, #8e0000); }
+  .unit.acted  { filter: grayscale(.6) brightness(.6); }
+  .unit.plane.player { background: linear-gradient(160deg, #4dd0e1, #00695c); font-size: 14px; }
+  .unit.plane.enemy  { background: linear-gradient(160deg, #ff8a65, #bf360c); font-size: 14px; }
+  .uname { line-height: 1; margin-bottom: 3px; text-shadow: 0 1px 2px #000; font-size: 10px; }
+  .hpbar { width: 30px; height: 4px; background: rgba(0,0,0,.6); border-radius: 2px; overflow: hidden; }
+  .hpfill { height: 100%; background: #4caf50; transition: width .2s; }
+  .plane-icon { font-size: 16px; line-height: 1; }
+  #sidebar { width: 280px; display: flex; flex-direction: column; gap: 12px; }
+  .panel {
+    background: #10263c; border: 1px solid #1e4a70;
+    border-radius: 8px; padding: 12px; font-size: 13px; line-height: 1.7;
+  }
+  .panel h2 {
+    font-size: 13px; margin: 0 0 8px; color: #7ec8ff; letter-spacing: 1px;
+    border-bottom: 1px solid #1e4a70; padding-bottom: 6px;
+  }
+  #log { height: 220px; overflow-y: auto; font-size: 12px; line-height: 1.6; color: #9fb8cc; }
+  #log div { margin-bottom: 3px; }
+  #log .dmg { color: #ff8a80; }
+  #log .turn { color: #4fc3f7; font-weight: bold; margin-top: 6px; }
+  #log .aa { color: #ffb74d; }
+  #log .plane { color: #4dd0e1; }
+  #screen-battle .bottom-btns { display: flex; gap: 8px; }
+  #screen-battle .bottom-btns button { flex: 1; padding: 10px; font-size: 13px; letter-spacing: 1px; }
+  .hint { font-size: 11px; color: #6a8aa8; line-height: 1.6; }
+  .hint b { color: #7ec8ff; }
+
+  /* ★ 战斗侧栏立绘 */
+  .info-portrait {
+    width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    background: #0f2030;
+    display: block;
+  }
+  .info-portrait.hidden { display: none; }
+
+  #screen-result .result-wrap { max-width: 480px; margin: 40px auto 0; text-align: center; }
+  .result-title {
+    font-size: 56px; font-weight: bold; letter-spacing: 12px; margin-bottom: 20px;
+  }
+  .result-title.victory { color: #ffd54f; text-shadow: 0 0 30px #ffd54f; }
+  .result-title.defeat { color: #ff5252; text-shadow: 0 0 30px #ff5252; }
+  .result-sub { font-size: 15px; color: #7ec8ff; margin-top: -10px; margin-bottom: 20px; letter-spacing: 2px; }
+
+  /* ★ 结算 MVP 立绘 */
+  .result-portrait {
+    width: 200px;
+    height: 260px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin: 0 auto 16px;
+    background: #0f2030;
+    display: block;
+    box-shadow: 0 0 30px rgba(126,200,255,.3);
+  }
+  .result-portrait.hidden { display: none; }
+
+  .result-stats {
+    background: #10263c; border: 1px solid #1e4a70; border-radius: 8px;
+    padding: 20px; margin-bottom: 24px; font-size: 14px; line-height: 2; text-align: left;
+  }
+  .result-stats .row { display: flex; justify-content: space-between; }
+  .result-stats .label { color: #6a8aa8; }
+  .result-stats .value { color: #7ec8ff; font-weight: bold; }
+  .result-actions { display: flex; gap: 12px; }
+  .result-actions button { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- ============ 主页 ============ -->
+<div id="screen-home" class="screen active">
+  <div class="home-wrap">
+    <h1>舰娘战棋</h1>
+    <div class="subtitle">KANTAI TACTICS</div>
+    <div class="menu">
+      <button class="primary" id="btnCampaign">战 役 模 式</button>
+      <button id="btnHelp">玩 法 说 明</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 关卡列表 ============ -->
+<div id="screen-campaign" class="screen">
+  <div class="campaign-wrap">
+    <div class="campaign-header">
+      <h2>战 役</h2>
+      <div class="tip">通关后解锁下一关，进度自动保存</div>
+    </div>
+    <div class="level-list" id="levelList"></div>
+    <div class="campaign-footer">
+      <button id="btnBackHome">返 回 主 页</button>
+      <button class="danger" id="btnReset">重 置 进 度</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 舰队选择 ============ -->
+<div id="screen-select" class="screen">
+  <div class="select-wrap">
+    <div class="select-header">
+      <h2 id="selectTitle">舰 队 编 成</h2>
+      <div class="tip">从船池中选择 3 艘舰娘出战</div>
+    </div>
+    <div class="select-body">
+      <div class="pool-panel">
+        <div class="panel-title">船 池</div>
+        <div class="ship-grid" id="poolGrid"></div>
+      </div>
+      <div class="chosen-panel">
+        <div class="panel-title">已 选 舰 队</div>
+        <div id="chosenSlots"></div>
+        <div class="enemy-info" id="enemyInfo"></div>
+        <div class="select-actions">
+          <button class="primary" id="sortieBtn" disabled>出 击</button>
+          <button id="btnBackCampaign">返 回 关 卡</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 战斗 ============ -->
+<div id="screen-battle" class="screen">
+  <div class="battle-wrap">
+    <div>
+      <h1>舰娘战棋</h1>
+      <div id="board"></div>
+    </div>
+    <div id="sidebar">
+      <div class="panel">
+        <h2>战况</h2>
+        <div id="info">点击己方舰娘开始行动</div>
+      </div>
+      <div class="panel">
+        <h2>战斗记录</h2>
+        <div id="log"></div>
+      </div>
+      <div class="bottom-btns">
+        <button id="undoBtn" style="display:none">撤销移动</button>
+        <button id="endTurnBtn">结束回合</button>
+      </div>
+      <div class="panel hint">
+        <b>操作：</b>点舰娘 → 蓝格走 / 红框打 / 金格放飞<br>
+        航母只能放飞。飞机6格移动，攻击后返航。<br>
+        <b>迷雾：</b>视野外敌人不可见，岛屿阻挡视线
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 结算 ============ -->
+<div id="screen-result" class="screen">
+  <div class="result-wrap">
+    <div class="result-title" id="resultTitle">胜利！</div>
+    <div class="result-sub" id="resultSub"></div>
+    <img class="result-portrait hidden" id="resultPortrait" alt="MVP">
+    <div class="result-stats">
+      <div class="row"><span class="label">回合数</span><span class="value" id="statTurns">0</span></div>
+      <div class="row"><span class="label">击沉敌舰</span><span class="value" id="statKills">0</span></div>
+      <div class="row"><span class="label">己方损失</span><span class="value" id="statLosses">0</span></div>
+    </div>
+    <div class="result-actions" id="resultActions"></div>
+  </div>
+</div>
+
+<!-- ============ 玩法说明弹窗 ============ -->
+<div class="modal-bg" id="helpModal">
+  <div class="modal">
+    <h2>玩 法 说 明</h2>
+    <h3>■ 基本操作</h3>
+    <ul>
+      <li>点击己方舰娘 → 蓝格（可移动）和红框（可攻击的敌人）</li>
+      <li>点蓝格移动，点红框敌人攻击，点空地取消</li>
+      <li>每艘船每回合行动一次</li>
+    </ul>
+    <h3>■ 舰种特性</h3>
+    <ul>
+      <li><b>驱逐舰</b>：移动5，射程1，视野4，闪避高</li>
+      <li><b>巡洋舰</b>：移动4，射程2，视野3，均衡</li>
+      <li><b>战列舰</b>：移动2，射程3，视野3，高攻高防</li>
+      <li><b>航母</b>：不能炮击，只能放飞舰载机</li>
+    </ul>
+    <h3>■ 舰载机</h3>
+    <ul>
+      <li>航母每回合可放飞1架，相邻空格放置</li>
+      <li>飞机移动6格（可分批走），射程1，视野5</li>
+      <li>攻击一次后自动返航</li>
+      <li>存在3回合，超时坠毁；母舰需整备1回合</li>
+    </ul>
+    <h3>■ 战争迷雾</h3>
+    <ul>
+      <li>视野外的敌人不可见，无法攻击</li>
+      <li>全队共享视野</li>
+      <li>岛屿阻挡视线</li>
+    </ul>
+    <button class="close-btn" id="btnCloseHelp">关 闭</button>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   全局配置
+   ================================================================ */
+
+const SIZE = 10;
+
+const SHIP_TYPES = {
+  dd: { label: '驱逐舰', move: 5, range: 1, hp: 34, atk: 14, def: 4,  dodge: 0.25, aa: 25, vision: 4 },
+  cl: { label: '巡洋舰', move: 4, range: 2, hp: 48, atk: 20, def: 7,  dodge: 0.12, aa: 38, vision: 3 },
+  bb: { label: '战列舰', move: 2, range: 3, hp: 70, atk: 28, def: 12, dodge: 0.03, aa: 60, vision: 3 },
+  cv: { label: '航母',   move: 3, range: 0, hp: 54, atk: 0,  def: 8,  dodge: 0.05, aa: 15, vision: 3 },
+};
+
+const PLANE = { move: 6, range: 1, atk: 18, life: 3, vision: 5 };
+
+const ISLANDS = [
+  [3,2],[3,3],[4,3],
+  [3,6],[3,7],[4,6],
+  [6,1],[6,2],
+  [6,7],[7,7],[7,6],
+  [5,4],[5,5],
+];
+
+/* ★ 立绘路径：有图就显示，没图自动隐藏
+   图片放在 舰娘战棋.html 同目录的 images/ 文件夹里
+   文件名对应下面 portrait 字段 */
+const PLAYER_POOL = [
+  { name: '雪风', type: 'dd', portrait: 'images/yukikaze.png' },
+  { name: '时雨', type: 'dd', portrait: 'images/shigure.png' },
+  { name: '最上', type: 'cl', portrait: 'images/mogami.png' },
+  { name: '妙高', type: 'cl', portrait: 'images/myoko.png' },
+  { name: '大和', type: 'bb', portrait: 'images/yamato.png' },
+  { name: '长门', type: 'bb', portrait: 'images/nagato.png' },
+  { name: '赤城', type: 'cv', portrait: 'images/akagi.png' },
+  { name: '加贺', type: 'cv', portrait: 'images/kaga.png' },
+];
+
+const LEVELS = [
+  {
+    id: 1, name: '遭遇战', desc: '初次接触，击沉敌方驱逐舰',
+    enemy: [{ name: '吹雪', type: 'dd', portrait: 'images/fubuki.png' }],
+  },
+  {
+    id: 2, name: '巡逻队', desc: '敌方两支驱逐舰队，注意闪避',
+    enemy: [
+      { name: '吹雪', type: 'dd', portrait: 'images/fubuki.png' },
+      { name: '时雨', type: 'dd', portrait: 'images/shigure.png' },
+    ],
+  },
+  {
+    id: 3, name: '炮击战', desc: '战列舰与巡洋舰的正面交锋',
+    enemy: [
+      { name: '长门', type: 'bb', portrait: 'images/nagato.png' },
+      { name: '最上', type: 'cl', portrait: 'images/mogami.png' },
+    ],
+  },
+];
+
+const PLAYER_START = [{ x: 0, y: 1 }, { x: 0, y: 4 }, { x: 0, y: 7 }];
+const ENEMY_START  = [{ x: 9, y: 2 }, { x: 9, y: 5 }, { x: 9, y: 8 }];
+
+/* ================================================================
+   存档
+   ================================================================ */
+
+const SAVE_KEY = 'kantai_campaign_progress';
+
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return { cleared: [] };
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data.cleared)) return { cleared: [] };
+    return data;
+  } catch (e) {
+    return { cleared: [] };
+  }
+}
+
+function saveProgress(progress) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
+  } catch (e) {}
+}
+
+function markCleared(levelId) {
+  try {
+    const p = loadProgress();
+    if (!p.cleared.includes(levelId)) {
+      p.cleared.push(levelId);
+      saveProgress(p);
+    }
+  } catch (e) {}
+}
+
+function isCleared(levelId) {
+  try { return loadProgress().cleared.includes(levelId); }
+  catch (e) { return false; }
+}
+
+function isUnlocked(levelId) {
+  if (levelId === 1) return true;
+  return isCleared(levelId - 1);
+}
+
+function resetProgress() {
+  try {
+    if (!confirm('确定要清空通关进度吗？此操作不可撤销。')) return;
+    localStorage.removeItem(SAVE_KEY);
+  } catch (e) {}
+  renderCampaign();
+}
+
+/* ================================================================
+   状态
+   ================================================================ */
+
+let map, units, selected, moveRange, attackableSet, launchRange;
+let phase, turnCount, isProcessing, visionSet;
+let chosenShips = [];
+let battleStats = { turns: 0, kills: 0, losses: 0 };
+let currentLevel = null;
+
+const boardEl = document.getElementById('board');
+const logEl = document.getElementById('log');
+const infoEl = document.getElementById('info');
+const endTurnBtn = document.getElementById('endTurnBtn');
+const undoBtn = document.getElementById('undoBtn');
+
+/* ================================================================
+   界面切换
+   ================================================================ */
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+  const target = document.getElementById(id);
+  if (target) target.classList.add('active');
+}
+
+function gotoHome() { showScreen('screen-home'); }
+
+function gotoCampaign() {
+  try { renderCampaign(); } catch (e) {}
+  showScreen('screen-campaign');
+}
+
+function showHelp() {
+  const m = document.getElementById('helpModal');
+  if (m) m.classList.add('show');
+}
+function hideHelp() {
+  const m = document.getElementById('helpModal');
+  if (m) m.classList.remove('show');
+}
+
+/* ================================================================
+   ★ 图片加载辅助：加载成功显示，失败隐藏
+   ================================================================ */
+
+function createPortrait(src, className) {
+  if (!src) {
+    // 没配图，直接返回 null
+    return null;
+  }
+  const img = document.createElement('img');
+  img.className = className;
+  img.src = src;
+  img.alt = '';
+  img.onerror = () => { img.classList.add('hidden'); };
+  img.onload = () => { img.classList.remove('hidden'); };
+  // 初始先隐藏，等 onload 再显示（避免加载中显示破图）
+  img.classList.add('hidden');
+  return img;
+}
+
+/* ================================================================
+   关卡列表
+   ================================================================ */
+
+function renderCampaign() {
+  const list = document.getElementById('levelList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  for (const lv of LEVELS) {
+    let unlocked = false, cleared = false;
+    try {
+      unlocked = isUnlocked(lv.id);
+      cleared = isCleared(lv.id);
+    } catch (e) {}
+
+    const card = document.createElement('div');
+    card.className = 'level-card';
+    if (cleared) card.classList.add('cleared');
+    if (!unlocked) card.classList.add('locked');
+
+    let statusText = '';
+    let statusCls = '';
+    if (cleared) { statusText = '已通关'; statusCls = 'cleared'; }
+    else if (unlocked) { statusText = '可挑战'; statusCls = ''; }
+    else { statusText = '未解锁'; statusCls = 'locked'; }
+
+    card.innerHTML = `
+      <div class="level-num">${lv.id}</div>
+      <div class="level-info">
+        <div class="level-name">${lv.name}</div>
+        <div class="level-desc">${lv.desc}</div>
+      </div>
+      <div class="level-status ${statusCls}">${statusText}</div>
+    `;
+
+    if (unlocked) {
+      card.onclick = () => startLevel(lv.id);
+    }
+
+    list.appendChild(card);
+  }
+}
+
+/* ================================================================
+   开始关卡 → 舰队选择
+   ================================================================ */
+
+function startLevel(levelId) {
+  currentLevel = LEVELS.find(l => l.id === levelId);
+  if (!currentLevel) return;
+  chosenShips = [];
+  renderSelect();
+  showScreen('screen-select');
+}
+
+function renderSelect() {
+  const titleEl = document.getElementById('selectTitle');
+  if (titleEl) {
+    titleEl.textContent = currentLevel
+      ? `第 ${currentLevel.id} 关 · ${currentLevel.name}`
+      : '舰 队 编 成';
+  }
+
+  const poolGrid = document.getElementById('poolGrid');
+  if (!poolGrid) return;
+  poolGrid.innerHTML = '';
+
+  for (const ship of PLAYER_POOL) {
+    const t = SHIP_TYPES[ship.type];
+    const isChosen = chosenShips.some(s => s.name === ship.name);
+    const isFull = chosenShips.length >= 3 && !isChosen;
+
+    const card = document.createElement('div');
+    card.className = 'ship-card';
+    if (isChosen) card.classList.add('selected');
+    if (isFull) card.classList.add('disabled');
+
+    // ★ 立绘区域
+    const portrait = createPortrait(ship.portrait, 'ship-portrait');
+    if (portrait) {
+      card.appendChild(portrait);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'portrait-placeholder';
+      ph.textContent = t.label;
+      card.appendChild(ph);
+    }
+
+    // 文字信息
+    const info = document.createElement('div');
+    info.innerHTML = `
+      <div class="name">${ship.name}</div>
+      <div class="type">${t.label}</div>
+      <div class="stat">
+        HP ${t.hp} · 攻 ${t.type === 'cv' ? '—' : t.atk}<br>
+        移 ${t.move} · 射 ${t.type === 'cv' ? '放飞' : t.range} · 视 ${t.vision}
+      </div>
+    `;
+    card.appendChild(info);
+
+    card.onclick = () => {
+      if (isChosen) chosenShips = chosenShips.filter(s => s.name !== ship.name);
+      else { if (chosenShips.length >= 3) return; chosenShips.push(ship); }
+      renderSelect();
+    };
+
+    poolGrid.appendChild(card);
+  }
+
+  const slotsEl = document.getElementById('chosenSlots');
+  if (slotsEl) {
+    slotsEl.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+      const ship = chosenShips[i];
+      const slot = document.createElement('div');
+      slot.className = 'chosen-slot' + (ship ? ' filled' : '');
+      if (ship) {
+        const t = SHIP_TYPES[ship.type];
+        slot.innerHTML = `
+          <div class="slot-num">${i + 1}</div>
+          <div class="slot-info">
+            <div class="slot-name">${ship.name}</div>
+            <div class="slot-type">${t.label}</div>
+          </div>
+          <button class="remove-btn" data-idx="${i}">移除</button>
+        `;
+      } else {
+        slot.innerHTML = `
+          <div class="slot-num">${i + 1}</div>
+          <div class="slot-info" style="color:#4a6a8a">空 位</div>
+        `;
+      }
+      slotsEl.appendChild(slot);
+    }
+    slotsEl.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.onclick = () => removeShip(Number(btn.dataset.idx));
+    });
+  }
+
+  const enemyInfo = document.getElementById('enemyInfo');
+  if (enemyInfo && currentLevel) {
+    enemyInfo.innerHTML = `
+      <div class="title">敌 方 情 报</div>
+      敌方舰队：${currentLevel.enemy.length} 艘<br>
+      具体配置 —— 未知<br>
+      <span style="color:#8a6a6a;font-size:11px">（战斗中将逐步侦察）</span>
+    `;
+  }
+
+  const sortieBtn = document.getElementById('sortieBtn');
+  if (sortieBtn) sortieBtn.disabled = chosenShips.length !== 3;
+}
+
+function removeShip(i) {
+  chosenShips.splice(i, 1);
+  renderSelect();
+}
+
+function sortie() {
+  if (chosenShips.length !== 3 || !currentLevel) return;
+  battleStats = { turns: 0, kills: 0, losses: 0 };
+  initBattle(chosenShips, currentLevel.enemy);
+  showScreen('screen-battle');
+}
+
+/* ================================================================
+   战斗
+   ================================================================ */
+
+let unitIdCounter = 0;
+
+function createUnit(name, typeKey, side, x, y, portrait) {
+  const t = SHIP_TYPES[typeKey];
+  return {
+    id: ++unitIdCounter,
+    kind: 'ship',
+    name, type: typeKey, typeLabel: t.label, side, x, y,
+    portrait: portrait || null,       // ★ 保存立绘路径
+    hp: t.hp, maxHp: t.hp,
+    move: t.move, range: t.range,
+    atk: t.atk, def: t.def, dodge: t.dodge, aa: t.aa,
+    vision: t.vision,
+    acted: false, hasMoved: false,
+    originX: x, originY: y,
+    planeCooldown: 0, hasPlane: false,
+  };
+}
+
+function createPlane(carrier, x, y) {
+  return {
+    id: ++unitIdCounter,
+    kind: 'plane',
+    name: carrier.name + '舰载机',
+    side: carrier.side, x, y,
+    portrait: null,
+    hp: 1, maxHp: 1,
+    move: PLANE.move, moveLeft: PLANE.move, range: PLANE.range,
+    atk: PLANE.atk, def: 0, dodge: 0, aa: 0,
+    vision: PLANE.vision,
+    acted: false, hasMoved: false,
+    originX: x, originY: y,
+    carrierId: carrier.id,
+    lifeLeft: PLANE.life, justLaunched: true,
+  };
+}
+
+function getCarrier(plane) { return units.find(u => u.id === plane.carrierId); }
+
+function initBattle(playerShips, enemyShips) {
+  unitIdCounter = 0;
+  map = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+  for (const [x, y] of ISLANDS) map[y][x] = 1;
+
+  units = [];
+  playerShips.forEach((s, i) => {
+    const pos = PLAYER_START[i];
+    units.push(createUnit(s.name, s.type, 'player', pos.x, pos.y, s.portrait));
+  });
+  enemyShips.forEach((s, i) => {
+    const pos = ENEMY_START[i];
+    units.push(createUnit(s.name, s.type, 'enemy', pos.x, pos.y, s.portrait));
+  });
+
+  selected = null;
+  moveRange = new Set(); attackableSet = new Set(); launchRange = new Set();
+  phase = 'player'; turnCount = 1; isProcessing = false;
+  visionSet = new Set();
+  battleStats = { turns: 0, kills: 0, losses: 0 };
+
+  logEl.innerHTML = '';
+  log('战斗开始', 'turn');
+
+  recomputeVision();
+  render();
+}
+
+/* ================================================================
+   工具
+   ================================================================ */
+
+function manhattan(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
+function getUnitAt(x, y) { return units.find(u => u.hp > 0 && u.x === x && u.y === y) || null; }
+
+function log(text, cls) {
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = text;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function friendlyPlanesNear(carrier, radius) {
+  return units.filter(u =>
+    u.kind === 'plane' && u.hp > 0 && u.side === carrier.side &&
+    manhattan(u, carrier) <= radius
+  ).length;
+}
+
+/* ================================================================
+   视野
+   ================================================================ */
+
+function lineOfSight(x0, y0, x1, y1) {
+  let dx = Math.abs(x1 - x0);
+  let dy = Math.abs(y1 - y0);
+  let sx = x0 < x1 ? 1 : -1;
+  let sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  let x = x0, y = y0;
+  while (true) {
+    if (x === x1 && y === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx)  { err += dx; y += sy; }
+    if (x === x1 && y === y1) break;
+    if (map[y][x] === 1) return false;
+  }
+  return true;
+}
+
+function computeVisionFrom(unit) {
+  const set = new Set();
+  const r = unit.vision;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const dist = Math.abs(dx) + Math.abs(dy);
+      if (dist > r) continue;
+      const x = unit.x + dx;
+      const y = unit.y + dy;
+      if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) continue;
+      if (dx === 0 && dy === 0) { set.add(`${x},${y}`); continue; }
+      if (lineOfSight(unit.x, unit.y, x, y)) set.add(`${x},${y}`);
+    }
+  }
+  return set;
+}
+
+function recomputeVision() {
+  visionSet = new Set();
+  for (const u of units) {
+    if (u.side !== 'player' || u.hp <= 0) continue;
+    for (const k of computeVisionFrom(u)) visionSet.add(k);
+  }
+}
+
+function isVisible(x, y) { return visionSet.has(`${x},${y}`); }
+function isUnitVisibleToPlayer(u) {
+  if (u.side === 'player') return true;
+  if (u.hp <= 0) return false;
+  return isVisible(u.x, u.y);
+}
+
+/* ================================================================
+   移动 / 攻击 / 放飞
+   ================================================================ */
+
+function getCurrentMovePower(unit) {
+  if (unit.kind === 'plane') return unit.moveLeft;
+  return unit.hasMoved ? 0 : unit.move;
+}
+
+function getMoveRange(unit) {
+  const power = getCurrentMovePower(unit);
+  const visited = new Map();
+  visited.set(`${unit.x},${unit.y}`, 0);
+  const queue = [{ x: unit.x, y: unit.y, cost: 0 }];
+  const isPlane = unit.kind === 'plane';
+
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (cur.cost >= power) continue;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = cur.x + dx, ny = cur.y + dy;
+      if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+      if (!isPlane && map[ny][nx] === 1) continue;
+      const key = `${nx},${ny}`;
+      if (visited.has(key)) continue;
+      const occ = getUnitAt(nx, ny);
+      if (occ && occ.side !== unit.side) continue;
+      visited.set(key, cur.cost + 1);
+      queue.push({ x: nx, y: ny, cost: cur.cost + 1 });
+    }
+  }
+
+  const result = new Set();
+  for (const key of visited.keys()) {
+    const [x, y] = key.split(',').map(Number);
+    if (map[y][x] === 1) continue;
+    const occ = getUnitAt(x, y);
+    if (occ && occ !== unit) continue;
+    result.add(key);
+  }
+  result.delete(`${unit.x},${unit.y}`);
+  return result;
+}
+
+function refreshAttackable(unit) {
+  attackableSet.clear();
+  if (!unit) return;
+  if (unit.kind === 'plane' && unit.acted) return;
+  if (unit.kind === 'ship' && unit.type === 'cv') return;
+
+  for (const u of units) {
+    if (u.hp <= 0) continue;
+    if (u.side === unit.side) continue;
+    if (u.kind !== 'ship') continue;
+    if (manhattan(unit, u) > unit.range) continue;
+    if (unit.side === 'player' && !isUnitVisibleToPlayer(u)) continue;
+    attackableSet.add(`${u.x},${u.y}`);
+  }
+}
+
+function refreshLaunchRange(carrier) {
+  launchRange.clear();
+  if (!carrier || carrier.kind !== 'ship' || carrier.type !== 'cv') return;
+  if (carrier.planeCooldown > 0 || carrier.hasPlane) return;
+  for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    const nx = carrier.x + dx, ny = carrier.y + dy;
+    if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+    if (map[ny][nx] === 1) continue;
+    if (getUnitAt(nx, ny)) continue;
+    launchRange.add(`${nx},${ny}`);
+  }
+}
+
+/* ================================================================
+   渲染
+   ================================================================ */
+
+function render() {
+  boardEl.innerHTML = '';
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.x = x;
+      cell.dataset.y = y;
+      const key = `${x},${y}`;
+      const visible = isVisible(x, y);
+
+      if (map[y][x] === 1) cell.classList.add('island');
+      if (!visible) cell.classList.add('fog');
+
+      if (visible) {
+        if (selected && moveRange.has(key)) cell.classList.add('move-range');
+        if (attackableSet.has(key)) cell.classList.add('attack-target');
+        if (launchRange.has(key)) cell.classList.add('launch-range');
+      }
+
+      const u = getUnitAt(x, y);
+      const shouldDraw = u && (u.side === 'player' || visible);
+
+      if (shouldDraw) {
+        if (u === selected) cell.classList.add('selected');
+        const div = document.createElement('div');
+        if (u.kind === 'plane') {
+          div.className = `unit plane ${u.side}` + (u.acted ? ' acted' : '');
+          div.innerHTML = `<div class="plane-icon">✈</div>`;
+        } else {
+          div.className = `unit ${u.side}` + (u.acted ? ' acted' : '');
+          const pct = Math.max(0, u.hp / u.maxHp * 100);
+          let extra = '';
+          if (u.type === 'cv') {
+            if (u.planeCooldown > 0) extra = `<div style="font-size:9px;color:#ffd54f">整备${u.planeCooldown}</div>`;
+            else if (u.hasPlane) extra = `<div style="font-size:9px;color:#4dd0e1">机在空</div>`;
+          }
+          div.innerHTML = `
+            <div class="uname">${u.name}</div>
+            <div class="hpbar"><div class="hpfill" style="width:${pct}%;background:${pct > 50 ? '#4caf50' : pct > 25 ? '#ff9800' : '#f44336'}"></div></div>
+            ${extra}
+          `;
+        }
+        cell.appendChild(div);
+      }
+
+      boardEl.appendChild(cell);
+    }
+  }
+
+  undoBtn.style.display = (selected && selected.kind === 'ship' && selected.hasMoved) ? 'block' : 'none';
+  updateInfo();
+  updateEndTurnBtn();
+}
+
+function updateInfo() {
+  if (selected) {
+    const u = selected;
+    if (u.kind === 'plane') {
+      infoEl.innerHTML = `
+        <b style="color:#4dd0e1">${u.name}</b><br>
+        剩余移动 ${u.moveLeft} / ${u.move}<br>
+        射程 ${u.range} · 攻击 ${u.atk} · 视野 ${u.vision}<br>
+        存在剩余 ${u.lifeLeft} 回合
+      `;
+      return;
+    }
+
+    // ★ 立绘（有图显示，没图自动隐藏）
+    infoEl.innerHTML = '';
+    const portrait = createPortrait(u.portrait, 'info-portrait');
+    if (portrait) {
+      infoEl.appendChild(portrait);
+    }
+
+    let extra = '';
+    if (u.type === 'cv') {
+      if (u.planeCooldown > 0) extra = `<br><span style="color:#ffd54f">整备中（剩 ${u.planeCooldown} 回合）</span>`;
+      else if (u.hasPlane) extra = `<br><span style="color:#4dd0e1">舰载机在空</span>`;
+      else extra = `<br><span style="color:#7ec8ff">可放飞舰载机</span>`;
+    }
+
+    const info = document.createElement('div');
+    info.innerHTML = `
+      <b style="color:#7ec8ff">${u.name}</b> <span style="color:#6a8aa8">${u.typeLabel}</span><br>
+      HP ${u.hp} / ${u.maxHp}<br>
+      ${u.type === 'cv' ? '航母无炮击能力<br>' : `攻击 ${u.atk} · 防御 ${u.def}<br>`}
+      移动 ${u.move} · 射程 ${u.type === 'cv' ? '—' : u.range}<br>
+      闪避 ${Math.round(u.dodge * 100)}% · 防空 ${u.aa}<br>
+      视野 ${u.vision}
+      ${extra}
+    `;
+    infoEl.appendChild(info);
+  } else {
+    infoEl.textContent = phase === 'player' ? '点击己方舰娘开始行动' : '敌方行动中...';
+  }
+}
+
+function updateEndTurnBtn() {
+  const alive = units.filter(u => u.side === 'player' && u.hp > 0 && u.kind === 'ship');
+  const allActed = alive.length > 0 && alive.every(u => u.acted);
+  endTurnBtn.disabled = phase !== 'player' || allActed;
+  endTurnBtn.textContent = allActed ? '全部行动完毕' : '结束回合';
+}
+
+/* ================================================================
+   点击逻辑
+   ================================================================ */
+
+boardEl.addEventListener('click', (e) => {
+  const cell = e.target.closest('.cell');
+  if (!cell) return;
+  onCellClick(Number(cell.dataset.x), Number(cell.dataset.y));
+});
+
+function onCellClick(x, y) {
+  if (phase !== 'player') return;
+  if (isProcessing) return;
+  isProcessing = true;
+  try { handleClick(x, y); }
+  finally { isProcessing = false; }
+}
+
+function handleClick(x, y) {
+  const key = `${x},${y}`;
+  const visible = isVisible(x, y);
+  const clickedUnit = getUnitAt(x, y);
+
+  if (!visible) { if (selected) deselect(); return; }
+
+  if (!selected) {
+    if (clickedUnit && clickedUnit.side === 'player' && !clickedUnit.acted) selectUnit(clickedUnit);
+    return;
+  }
+
+  if (clickedUnit && clickedUnit.side === 'enemy' && attackableSet.has(key)) { doAttack(selected, clickedUnit); return; }
+  if (selected.kind === 'ship' && selected.type === 'cv' && launchRange.has(key) && !clickedUnit) { launchPlane(selected, x, y); return; }
+  if (clickedUnit === selected) { deselect(); return; }
+  if (clickedUnit && clickedUnit.side === 'player' && !clickedUnit.acted) { selectUnit(clickedUnit); return; }
+  if (moveRange.has(key) && !clickedUnit) { moveUnitTo(selected, x, y); return; }
+  if (selected.kind === 'plane') deselect();
+  else finishUnit(selected);
+}
+
+function moveUnitTo(unit, x, y) {
+  if (unit.kind === 'plane') {
+    const cost = bfsCost(unit, x, y);
+    if (cost > unit.moveLeft) return;
+    unit.x = x; unit.y = y;
+    unit.moveLeft = Math.max(0, unit.moveLeft - cost);
+    unit.justLaunched = false;
+    recomputeVision();
+    moveRange = getMoveRange(unit);
+    refreshAttackable(unit);
+    refreshLaunchRange(unit);
+    render();
+  } else {
+    unit.x = x; unit.y = y;
+    unit.hasMoved = true;
+    recomputeVision();
+    moveRange.clear();
+    refreshAttackable(unit);
+    refreshLaunchRange(unit);
+    render();
+  }
+}
+
+function bfsCost(unit, tx, ty) {
+  const visited = new Map();
+  visited.set(`${unit.x},${unit.y}`, 0);
+  const queue = [{ x: unit.x, y: unit.y, cost: 0 }];
+  const isPlane = unit.kind === 'plane';
+
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (cur.x === tx && cur.y === ty) return cur.cost;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = cur.x + dx, ny = cur.y + dy;
+      if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+      if (!isPlane && map[ny][nx] === 1) continue;
+      const key = `${nx},${ny}`;
+      if (visited.has(key)) continue;
+      const occ = getUnitAt(nx, ny);
+      if (occ && occ !== unit) continue;
+      visited.set(key, cur.cost + 1);
+      queue.push({ x: nx, y: ny, cost: cur.cost + 1 });
+    }
+  }
+  return 999;
+}
+
+function selectUnit(u) {
+  selected = u;
+  moveRange = getMoveRange(u);
+  refreshAttackable(u);
+  refreshLaunchRange(u);
+  render();
+}
+
+function deselect() {
+  selected = null;
+  moveRange.clear(); attackableSet.clear(); launchRange.clear();
+  render();
+}
+
+function finishUnit(u) {
+  u.acted = true;
+  u.hasMoved = false;
+  deselect();
+  if (checkGameOver()) return;
+  if (u.kind === 'plane') { render(); return; }
+  const alive = units.filter(x => x.side === 'player' && x.hp > 0 && x.kind === 'ship');
+  if (alive.every(x => x.acted)) setTimeout(startEnemyTurn, 700);
+}
+
+undoBtn.onclick = () => {
+  if (!selected || selected.kind !== 'ship' || !selected.hasMoved) return;
+  selected.x = selected.originX;
+  selected.y = selected.originY;
+  selected.hasMoved = false;
+  recomputeVision();
+  moveRange = getMoveRange(selected);
+  refreshAttackable(selected);
+  refreshLaunchRange(selected);
+  render();
+};
+
+function launchPlane(carrier, x, y) {
+  const plane = createPlane(carrier, x, y);
+  units.push(plane);
+  carrier.hasPlane = true;
+  log(`${carrier.name} 放飞舰载机`, 'plane');
+  carrier.acted = true;
+  carrier.hasMoved = false;
+  recomputeVision();
+  deselect();
+  if (checkGameOver()) return;
+  const alive = units.filter(x => x.side === 'player' && x.hp > 0 && x.kind === 'ship');
+  if (alive.every(x => x.acted)) setTimeout(startEnemyTurn, 700);
+}
+
+/* ================================================================
+   攻击
+   ================================================================ */
+
+function doAttack(attacker, defender) {
+  if (attacker.kind === 'plane') {
+    let aa = defender.aa;
+    let aaBonus = 0;
+    if (defender.type === 'cv') {
+      const near = friendlyPlanesNear(defender, 3);
+      if (near > 0) { aaBonus = 30; aa += 30; }
+    }
+    const interceptRate = aa / 100;
+    if (Math.random() < interceptRate) {
+      log(`${attacker.name} 突防 ${defender.name} —— 被防空火力拦截！(AA ${aa}${aaBonus ? ' 含+30护航' : ''})`, 'aa');
+      attacker.hp = 0;
+      onPlaneLost(attacker, 'shot');
+      return;
+    }
+    let dmg = attacker.atk;
+    const crit = Math.random() < 0.15;
+    if (crit) dmg = Math.round(dmg * 1.6);
+    defender.hp -= dmg;
+    log(`${attacker.name} 突防成功 → ${defender.name}  ${dmg} 伤害${crit ? '（暴击）' : ''}${aaBonus ? ` [敌AA ${aa}]` : ` [AA ${aa}]`}`, 'plane');
+    if (defender.hp <= 0) {
+      defender.hp = 0;
+      log(`  ${defender.name} 被击沉`, 'dmg');
+      countKill(defender);
+    }
+    attacker.hp = 0;
+    onPlaneLost(attacker, 'return');
+    return;
+  }
+
+  if (Math.random() < (defender.dodge || 0)) {
+    log(`${attacker.name} → ${defender.name} —— 未命中`, 'dmg');
+    finishUnit(attacker);
+    return;
+  }
+
+  let dmg = attacker.atk * (1 - defender.def / (defender.def + 30));
+  const crit = Math.random() < 0.12;
+  if (crit) dmg *= 1.6;
+  dmg = Math.max(1, Math.round(dmg));
+  defender.hp -= dmg;
+
+  if (defender.hp <= 0) {
+    defender.hp = 0;
+    log(`${attacker.name} → ${defender.name}  ${dmg} 伤害${crit ? '（暴击）' : ''}  【击沉】`, 'dmg');
+    countKill(defender);
+  } else {
+    log(`${attacker.name} → ${defender.name}  ${dmg} 伤害${crit ? '（暴击）' : ''}  剩余 ${defender.hp}`, 'dmg');
+  }
+
+  finishUnit(attacker);
+}
+
+function countKill(u) {
+  if (u.side === 'enemy') battleStats.kills++;
+  else battleStats.losses++;
+}
+
+function onPlaneLost(plane, reason) {
+  const carrier = getCarrier(plane);
+  if (carrier && carrier.hp > 0) {
+    carrier.hasPlane = false;
+    carrier.planeCooldown = 2;
+  }
+  if (reason === 'return') log(`  ${plane.name} 返航`, 'plane');
+  else if (reason === 'crash') log(`  ${plane.name} 未能返航，坠毁`, 'aa');
+  else if (reason === 'shot') log(`  ${plane.name} 被击落`, 'aa');
+
+  units = units.filter(u => u.id !== plane.id);
+  if (selected && selected.id === plane.id) {
+    selected = null; moveRange.clear(); attackableSet.clear(); launchRange.clear();
+  }
+  recomputeVision();
+  render();
+  if (checkGameOver()) return;
+  if (phase === 'player') {
+    const alive = units.filter(x => x.side === 'player' && x.hp > 0 && x.kind === 'ship');
+    if (alive.length > 0 && alive.every(x => x.acted)) setTimeout(startEnemyTurn, 700);
+  }
+}
+
+/* ================================================================
+   敌方回合
+   ================================================================ */
+
+function startEnemyTurn() {
+  if (phase === 'over') return;
+  phase = 'enemy';
+  selected = null;
+  moveRange.clear(); attackableSet.clear(); launchRange.clear();
+  render();
+  log(`— 敌方回合 —`, 'turn');
+
+  const enemyShips = units.filter(u => u.side === 'enemy' && u.hp > 0 && u.kind === 'ship');
+  const enemyPlanes = units.filter(u => u.side === 'enemy' && u.hp > 0 && u.kind === 'plane');
+  const sequence = [...enemyShips, ...enemyPlanes];
+  let i = 0;
+
+  function next() {
+    if (checkGameOver()) return;
+    if (i >= sequence.length) { endEnemyTurn(); return; }
+    const e = sequence[i++];
+    if (e.hp <= 0) { next(); return; }
+    doEnemyAction(e);
+    recomputeVision();
+    render();
+    if (checkGameOver()) return;
+    setTimeout(next, 600);
+  }
+  setTimeout(next, 400);
+}
+
+function doEnemyAction(e) {
+  const playerShips = units.filter(u => u.side === 'player' && u.hp > 0 && u.kind === 'ship');
+  if (playerShips.length === 0) return;
+
+  if (e.kind === 'plane') {
+    let target = null, bestD = Infinity;
+    for (const t of playerShips) {
+      const d = manhattan(e, t);
+      if (d < bestD) { bestD = d; target = t; }
+    }
+    if (!target) return;
+    if (manhattan(e, target) <= e.range) { doAttack(e, target); return; }
+
+    const range = getMoveRange(e);
+    let bestPos = null, bestDist = manhattan(e, target);
+    for (const key of range) {
+      const [x, y] = key.split(',').map(Number);
+      const d = Math.abs(x - target.x) + Math.abs(y - target.y);
+      if (d < bestDist) { bestDist = d; bestPos = { x, y }; }
+    }
+    if (bestPos) {
+      e.x = bestPos.x; e.y = bestPos.y;
+      if (manhattan(e, target) <= e.range) doAttack(e, target);
+    }
+    return;
+  }
+
+  if (e.type === 'cv' && e.planeCooldown === 0 && !e.hasPlane) {
+    const spots = [];
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = e.x + dx, ny = e.y + dy;
+      if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+      if (map[ny][nx] === 1) continue;
+      if (getUnitAt(nx, ny)) continue;
+      spots.push({ x: nx, y: ny });
+    }
+    if (spots.length > 0) {
+      const spot = spots[Math.floor(Math.random() * spots.length)];
+      units.push(createPlane(e, spot.x, spot.y));
+      e.hasPlane = true;
+      log(`${e.name} 放飞舰载机`, 'plane');
+      return;
+    }
+  }
+  if (e.type === 'cv') return;
+
+  let target = playerShips[0], bestScore = Infinity;
+  for (const t of playerShips) {
+    const score = manhattan(e, t) * 10 + (t.hp / t.maxHp) * 6;
+    if (score < bestScore) { bestScore = score; target = t; }
+  }
+  if (manhattan(e, target) <= e.range) { doAttack(e, target); return; }
+
+  const range = getMoveRange(e);
+  let bestPos = null, bestDist = manhattan(e, target);
+  for (const key of range) {
+    const [x, y] = key.split(',').map(Number);
+    const d = Math.abs(x - target.x) + Math.abs(y - target.y);
+    if (d < bestDist) { bestDist = d; bestPos = { x, y }; }
+  }
+  if (bestPos) {
+    e.x = bestPos.x; e.y = bestPos.y;
+    if (manhattan(e, target) <= e.range) doAttack(e, target);
+  }
+}
+
+function endEnemyTurn() {
+  if (checkGameOver()) return;
+
+  for (const u of units) {
+    if (u.kind === 'ship' && u.type === 'cv' && u.planeCooldown > 0) u.planeCooldown--;
+  }
+
+  for (const u of units) {
+    if (u.side === 'player') {
+      if (u.kind === 'ship') {
+        u.acted = false; u.hasMoved = false;
+        u.originX = u.x; u.originY = u.y;
+      } else if (u.kind === 'plane') {
+        u.acted = false; u.hasMoved = false;
+        u.moveLeft = u.move;
+        u.originX = u.x; u.originY = u.y;
+      }
+    }
+  }
+
+  const planesToRemove = [];
+  for (const u of units) {
+    if (u.kind !== 'plane' || u.hp <= 0) continue;
+    if (u.justLaunched) { u.justLaunched = false; continue; }
+    u.lifeLeft--;
+    if (u.lifeLeft <= 0) planesToRemove.push(u);
+  }
+  for (const p of planesToRemove) {
+    log(`${p.name} 燃油耗尽，坠毁`, 'aa');
+    p.hp = 0;
+    onPlaneLost(p, 'crash');
+  }
+
+  turnCount++;
+  battleStats.turns = turnCount - 1;
+  log(`— 第 ${turnCount} 回合 —`, 'turn');
+  phase = 'player';
+  recomputeVision();
+  render();
+}
+
+/* ================================================================
+   胜负
+   ================================================================ */
+
+function checkGameOver() {
+  const pAlive = units.some(u => u.side === 'player' && u.hp > 0 && u.kind === 'ship');
+  const eAlive = units.some(u => u.side === 'enemy' && u.hp > 0 && u.kind === 'ship');
+
+  if (!pAlive) { endBattle('defeat'); return true; }
+  if (!eAlive) { endBattle('victory'); return true; }
+  return false;
+}
+
+function endBattle(result) {
+  phase = 'over';
+  battleStats.turns = turnCount;
+
+  let newlyCleared = false;
+  if (result === 'victory' && currentLevel) {
+    if (!isCleared(currentLevel.id)) newlyCleared = true;
+    markCleared(currentLevel.id);
+  }
+
+  const title = document.getElementById('resultTitle');
+  title.textContent = result === 'victory' ? '胜 利 ！' : '败 北 ...';
+  title.className = 'result-title ' + result;
+
+  const sub = document.getElementById('resultSub');
+  if (result === 'victory') {
+    const nextLevel = LEVELS.find(l => l.id === currentLevel.id + 1);
+    if (nextLevel) {
+      sub.textContent = newlyCleared
+        ? `已解锁：第 ${nextLevel.id} 关 · ${nextLevel.name}`
+        : `下一关：第 ${nextLevel.id} 关 · ${nextLevel.name}`;
+    } else {
+      sub.textContent = '全部通关！';
+    }
+  } else {
+    sub.textContent = '调整舰队配置，再试一次';
+  }
+
+  // ★ 结算立绘：选一个己方还活着的舰娘当 MVP
+  const resultPortraitEl = document.getElementById('resultPortrait');
+  resultPortraitEl.classList.add('hidden');
+  const survivors = units.filter(u => u.side === 'player' && u.hp > 0 && u.kind === 'ship' && u.portrait);
+  if (survivors.length > 0) {
+    // 取第一个有立绘的（或按某种规则，比如剩余 HP 最高的）
+    survivors.sort((a, b) => b.hp - a.hp);
+    const mvp = survivors[0];
+    resultPortraitEl.src = mvp.portrait;
+    resultPortraitEl.alt = mvp.name;
+    resultPortraitEl.classList.remove('hidden');
+    resultPortraitEl.onerror = () => resultPortraitEl.classList.add('hidden');
+  }
+
+  document.getElementById('statTurns').textContent = battleStats.turns;
+  document.getElementById('statKills').textContent = battleStats.kills;
+  document.getElementById('statLosses').textContent = battleStats.losses;
+
+  const actionsEl = document.getElementById('resultActions');
+  actionsEl.innerHTML = '';
+
+  if (result === 'victory') {
+    const nextLevel = LEVELS.find(l => l.id === currentLevel.id + 1);
+    if (nextLevel) {
+      const btn = document.createElement('button');
+      btn.className = 'primary';
+      btn.textContent = '下 一 关';
+      btn.onclick = () => startLevel(nextLevel.id);
+      actionsEl.appendChild(btn);
+    }
+    const backBtn = document.createElement('button');
+    backBtn.textContent = '返回关卡';
+    backBtn.onclick = () => gotoCampaign();
+    actionsEl.appendChild(backBtn);
+  } else {
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'primary';
+    retryBtn.textContent = '重 试';
+    retryBtn.onclick = () => startLevel(currentLevel.id);
+    actionsEl.appendChild(retryBtn);
+
+    const backBtn = document.createElement('button');
+    backBtn.textContent = '返回关卡';
+    backBtn.onclick = () => gotoCampaign();
+    actionsEl.appendChild(backBtn);
+  }
+
+  setTimeout(() => showScreen('screen-result'), 800);
+}
+
+/* ================================================================
+   按钮绑定
+   ================================================================ */
+
+document.getElementById('btnCampaign').addEventListener('click', gotoCampaign);
+document.getElementById('btnHelp').addEventListener('click', showHelp);
+document.getElementById('btnCloseHelp').addEventListener('click', hideHelp);
+document.getElementById('btnBackHome').addEventListener('click', gotoHome);
+document.getElementById('btnReset').addEventListener('click', resetProgress);
+document.getElementById('btnBackCampaign').addEventListener('click', gotoCampaign);
+document.getElementById('sortieBtn').addEventListener('click', sortie);
+
+endTurnBtn.addEventListener('click', () => {
+  if (phase !== 'player') return;
+  startEnemyTurn();
+});
+
+/* ================================================================
+   启动
+   ================================================================ */
+
+showScreen('screen-home');
+</script>
+</body>
+</html>
